@@ -81,6 +81,8 @@ const EditTokenModal = (props) => {
     allow_ips: '',
     group: '',
     cross_group_retry: false,
+    quota_reset_period: 'never',
+    quota_reset_custom_days: 1,
     tokenCount: 1,
   });
 
@@ -172,6 +174,12 @@ const EditTokenModal = (props) => {
       data.remain_amount = Number(
         quotaToDisplayAmount(data.remain_quota || 0).toFixed(6),
       );
+      if (!data.quota_reset_period) {
+        data.quota_reset_period = 'never';
+      }
+      if (!data.quota_reset_custom_days || data.quota_reset_custom_days < 1) {
+        data.quota_reset_custom_days = 1;
+      }
       if (formApiRef.current) {
         formApiRef.current.setValues({ ...getInitValues(), ...data });
       }
@@ -588,6 +596,41 @@ const EditTokenModal = (props) => {
                       )}
                     />
                   </Col>
+                  {!values.unlimited_quota && (
+                    <>
+                      <Col span={24}>
+                        <Form.Select
+                          field='quota_reset_period'
+                          label={t('额度重置周期')}
+                          optionList={[
+                            { label: t('不重置'), value: 'never' },
+                            { label: t('每天'), value: 'daily' },
+                            { label: t('每周'), value: 'weekly' },
+                            { label: t('每月'), value: 'monthly' },
+                            { label: t('自定义天数'), value: 'custom' },
+                          ]}
+                          extraText={t(
+                            '例如：额度 200 元、重置周期 1 天，则每天凌晨 0 时额度恢复为 200 元；重置不会改变令牌状态',
+                          )}
+                          style={{ width: '100%' }}
+                        />
+                      </Col>
+                      {values.quota_reset_period === 'custom' && (
+                        <Col span={24}>
+                          <Form.InputNumber
+                            field='quota_reset_custom_days'
+                            label={t('重置周期天数')}
+                            min={1}
+                            precision={0}
+                            extraText={t(
+                              '每 N 天重置一次，按自然日全局对齐，凌晨 0 时重置',
+                            )}
+                            style={{ width: '100%' }}
+                          />
+                        </Col>
+                      )}
+                    </>
+                  )}
                 </Row>
               </Card>
 

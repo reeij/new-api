@@ -442,3 +442,93 @@ export const processUserData = (data, dataExportDefaultTime, limit = 10) => {
 
   return { rankingData, trendData, topUsers };
 };
+
+// 按令牌(key)聚合的看板数据。
+// granularity: 'minute' | 'hour' | 'day'（越细越精确）
+// metric: 'count' | 'token_used' | 'quota'
+// keys: 真实令牌列表 [{id,name}]，用于让没有用量的 key 也出现在图中
+export const processTokenData = (
+  data,
+  granularity = 'hour',
+  metric = 'token_used',
+  keys = [],
+) => {
+  const metricValue = (item) => {
+    switch (metric) {
+      case 'count':
+        return item.count || 0;
+      case 'quota':
+        return item.quota || 0;
+      default:
+        return item.token_used || 0;
+    }
+  };
+  const tokenName = (item) => item.token_name || `#${item.token_id}`;
+
+  const pad = (n) => (n < 10 ? '0' + n : '' + n);
+  const bucketKey = (ts, showYear) => {
+    const d = new Date(ts * 1000);
+    const day = `${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const prefix = showYear ? `${d.getFullYear()}-${day}` : day;
+    if (granularity === 'minute') {
+      return `${prefix} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+    if (granularity === 'day') {
+      return prefix;
+    }
+    return `${prefix} ${pad(d.getHours())}:00`;
+  };
+
+  const keyNames = (keys || []).map((k) => k.name).filter(Boolean);
+  const knownKeys = new Set(keyNames);
+
+  // 先用全部真实 key 初始化（值为 0），再用日志累加
+  const tokenTotals = new Map();
+  keyNames.forEach((name) => tokenTotals.set(name, 0));
+  const isRealToken = (name) => knownKeys.size === 0 || knownKeys.has(name);
+
+  data.forEach((item) => {
+    const name = tokenName(item);
+    if (!isRealToken(name)) return;
+    tokenTotals.set(name, (tokenTotals.get(name) || 0) + metricValue(item));
+  });
+
+  const sorted = Array.from(tokenTotals.entries()).sort((a, b) => b[1] - a[1]);
+  const tokens = sorted.map(([name]) => name);
+  const tokenSet = new Set(tokens);
+  const rankingData = sorted.map(([Token, Value]) => ({ Token, Value }));
+
+  const showYear = isDataCrossYear(data.map((item) => item.created_at));
+
+  const timeTokenMap = new Map();
+  const allTimePoints = new Set();
+
+  data.forEach((item) => {
+    const name = tokenName(item);
+    if (!tokenSet.has(name)) return;
+    const timeKey = bucketKey(item.created_at, showYear);
+    allTimePoints.add(timeKey);
+    const key = `${timeKey}-${name}`;
+    timeTokenMap.set(key, (timeTokenMap.get(key) || 0) + metricValue(item));
+  });
+
+  const sortedTimePoints = Array.from(allTimePoints).sort();
+  const trendData = [];
+  sortedTimePoints.forEach((time) => {
+    tokens.forEach((Token) => {
+      trendData.push({
+        Time: time,
+        Token,
+        Value: timeTokenMap.get(`${time}-${Token}`) || 0,
+      });
+    });
+  });
+
+  const totalValue = data.reduce(
+    (sum, item) =>
+      isRealToken(tokenName(item)) ? sum + metricValue(item) : sum,
+    0,
+  );
+
+  return { rankingData, trendData, tokens, totalValue };
+};

@@ -125,6 +125,44 @@ func GetQuotaDataGroupByUser(startTime int64, endTime int64) (quotaData []*Quota
 	return quotaDatas, err
 }
 
+// TokenQuotaData 按令牌(key)聚合的看板数据
+type TokenQuotaData struct {
+	TokenID   int    `json:"token_id"`
+	TokenName string `json:"token_name"`
+	CreatedAt int64  `json:"created_at"`
+	TokenUsed int    `json:"token_used"`
+	Count     int    `json:"count"`
+	Quota     int    `json:"quota"`
+}
+
+// GetQuotaDataGroupByToken 直接从 logs 表按令牌(key)聚合消费数据。
+// quota_data 表没有 token 维度，因此这里绕过它，保证不改动数据库结构。
+func GetQuotaDataGroupByToken(startTime int64, endTime int64) (quotaData []*TokenQuotaData, err error) {
+	var quotaDatas []*TokenQuotaData
+	err = DB.Table("logs").
+		Select("token_id, token_name, created_at, count(*) as count, sum(prompt_tokens + completion_tokens) as token_used, sum(quota) as quota").
+		Where("type = ? and created_at >= ? and created_at <= ?", LogTypeConsume, startTime, endTime).
+		Group("token_id, token_name, created_at").
+		Find(&quotaDatas).Error
+	return quotaDatas, err
+}
+
+// TokenKey 令牌(key)的标识信息，用于让没有用量的 key 也能出现在图表里
+type TokenKey struct {
+	Id   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+// GetAllTokenKeys 返回所有未删除的令牌(key)，与用量无关
+func GetAllTokenKeys() (keys []*TokenKey, err error) {
+	err = DB.Table("tokens").
+		Select("id, name").
+		Where("deleted_at IS NULL").
+		Order("id").
+		Find(&keys).Error
+	return keys, err
+}
+
 func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaData []*QuotaData, err error) {
 	if username != "" {
 		return GetQuotaDataByUsername(username, startTime, endTime)

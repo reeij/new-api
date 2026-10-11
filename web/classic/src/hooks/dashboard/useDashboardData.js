@@ -234,6 +234,27 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     }
   }, [inputs, isAdminUser]);
 
+  const loadTokenQuotaData = useCallback(async () => {
+    if (!isAdminUser) return [];
+    try {
+      const { start_timestamp, end_timestamp } = inputs;
+      const localStartTimestamp = Date.parse(start_timestamp) / 1000;
+      const localEndTimestamp = Date.parse(end_timestamp) / 1000;
+      const url = `/api/data/tokens?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`;
+      const res = await API.get(url);
+      const { success, message, data, keys } = res.data;
+      if (success) {
+        return { data: data || [], keys: keys || [] };
+      } else {
+        showError(message);
+        return { data: [], keys: [] };
+      }
+    } catch (err) {
+      console.error(err);
+      return { data: [], keys: [] };
+    }
+  }, [inputs, isAdminUser]);
+
   const getUserData = useCallback(async () => {
     let res = await API.get(`/api/user/self`);
     const { success, message, data } = res.data;
@@ -333,6 +354,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     handleCloseModal,
     loadQuotaData,
     loadUserQuotaData,
+    loadTokenQuotaData,
     loadUptimeData,
     getUserData,
     refresh,

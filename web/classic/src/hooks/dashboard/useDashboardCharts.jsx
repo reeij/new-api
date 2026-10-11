@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { initVChartSemiTheme } from '@visactor/vchart-semi-theme';
 import {
   modelColorMap,
@@ -35,12 +35,75 @@ import {
   updateMapValue,
   initializeMaps,
   processUserData,
+  processTokenData,
 } from '../../helpers/dashboard';
 
 const USER_COLORS = [
   '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6',
   '#ec4899', '#06b6d4', '#f97316', '#6366f1', '#14b8a6',
 ];
+
+const TOKEN_COLORS = [
+  '#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444',
+  '#06b6d4', '#ec4899', '#f97316', '#6366f1', '#14b8a6',
+];
+
+// 令牌调用趋势图 spec。metric: 'count' | 'token_used' | 'quota'
+const makeTokenTrendSpec = (metric, values, totalValue, t) => {
+  const fmt = (v) => (metric === 'quota' ? renderQuota(v, 2) : renderNumber(v));
+  return {
+    type: 'line',
+    data: [{ id: 'tokenTrendData', values }],
+    xField: 'Time',
+    yField: 'Value',
+    seriesField: 'Token',
+    legends: { visible: true, selectMode: 'single', position: 'bottom' },
+    title: {
+      visible: true,
+      text: t('令牌调用趋势'),
+      subtext: `${t('总计')}：${fmt(totalValue)}`,
+    },
+    axes: [
+      {
+        orient: 'left',
+        label: { formatMethod: (value) => fmt(value) },
+      },
+    ],
+    point: { visible: false },
+    line: { style: { lineWidth: 2, curveType: 'monotone' } },
+    tooltip: {
+      mark: {
+        content: [
+          {
+            key: (datum) => datum['Token'],
+            value: (datum) => fmt(datum['rawValue'] || 0),
+          },
+        ],
+      },
+      dimension: {
+        content: [
+          {
+            key: (datum) => datum['Token'],
+            value: (datum) => datum['rawValue'] || 0,
+          },
+        ],
+        updateContent: (array) => {
+          array.sort((a, b) => b.value - a.value);
+          let sum = 0;
+          for (let i = 0; i < array.length; i++) {
+            let value = parseFloat(array[i].value);
+            if (isNaN(value)) value = 0;
+            sum += value;
+            array[i].value = fmt(value);
+          }
+          array.unshift({ key: t('总计'), value: fmt(sum) });
+          return array;
+        },
+      },
+    },
+    color: { type: 'ordinal', range: TOKEN_COLORS },
+  };
+};
 
 export const useDashboardCharts = (
   dataExportDefaultTime,
@@ -383,6 +446,58 @@ export const useDashboardCharts = (
     color: { type: 'ordinal', range: USER_COLORS },
   });
 
+  // ========== Admin: 令牌调用趋势 ==========
+  const [tokenMetric, setTokenMetric] = useState('token_used');
+  const [tokenGranularity, setTokenGranularity] = useState('hour');
+  const [spec_token_trend, setSpecTokenTrend] = useState(() =>
+    makeTokenTrendSpec('token_used', [], 0, t),
+  );
+  const tokenRawDataRef = useRef([]);
+
+  const buildTokenChart = useCallback(
+    (payload, metric, granularity) => {
+      const { data, keys } = payload || { data: [], keys: [] };
+      const { trendData, totalValue } = processTokenData(
+        data || [],
+        granularity,
+        metric,
+        keys || [],
+      );
+      const values = trendData.map((d) => ({
+        Time: d.Time,
+        Token: d.Token,
+        Value: d.Value,
+        rawValue: d.Value,
+      }));
+      setSpecTokenTrend(makeTokenTrendSpec(metric, values, totalValue, t));
+    },
+    [t],
+  );
+
+  const updateTokenChartData = useCallback(
+    (payload) => {
+      tokenRawDataRef.current = payload || { data: [], keys: [] };
+      buildTokenChart(tokenRawDataRef.current, tokenMetric, tokenGranularity);
+    },
+    [buildTokenChart, tokenMetric, tokenGranularity],
+  );
+
+  const updateTokenMetric = useCallback(
+    (metric) => {
+      setTokenMetric(metric);
+      buildTokenChart(tokenRawDataRef.current, metric, tokenGranularity);
+    },
+    [buildTokenChart, tokenGranularity],
+  );
+
+  const updateTokenGranularity = useCallback(
+    (granularity) => {
+      setTokenGranularity(granularity);
+      buildTokenChart(tokenRawDataRef.current, tokenMetric, granularity);
+    },
+    [buildTokenChart, tokenMetric],
+  );
+
   // ========== 数据处理函数 ==========
   const generateModelColors = useCallback((uniqueModels, modelColors) => {
     const newModelColors = {};
@@ -624,5 +739,11 @@ export const useDashboardCharts = (
     updateChartData,
     updateUserChartData,
     generateModelColors,
+    spec_token_trend,
+    tokenMetric,
+    updateTokenChartData,
+    updateTokenMetric,
+    tokenGranularity,
+    updateTokenGranularity,
   };
 };

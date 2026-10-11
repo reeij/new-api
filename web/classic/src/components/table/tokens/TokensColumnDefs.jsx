@@ -55,6 +55,22 @@ const getProgressColor = (pct) => {
   return undefined;
 };
 
+// 描述令牌额度重置周期
+const describeResetPeriod = (record, t) => {
+  switch (record.quota_reset_period) {
+    case 'daily':
+      return t('每天');
+    case 'weekly':
+      return t('每周');
+    case 'monthly':
+      return t('每月');
+    case 'custom':
+      return `${record.quota_reset_custom_days}${t('天')}`;
+    default:
+      return t('不重置');
+  }
+};
+
 // Render functions
 function renderTimestamp(timestamp) {
   return <>{timestamp2string(timestamp)}</>;
@@ -328,6 +344,18 @@ const renderQuotaUsage = (text, record, t) => {
       <Paragraph copyable={{ content: renderQuota(total) }}>
         {t('总额度')}: {renderQuota(total)}
       </Paragraph>
+      {record.quota_reset_period && record.quota_reset_period !== 'never' && (
+        <>
+          <Paragraph>
+            {t('额度重置周期')}: {describeResetPeriod(record, t)}
+          </Paragraph>
+          {record.next_reset_time > 0 && (
+            <Paragraph>
+              {t('下次重置时间')}: {timestamp2string(record.next_reset_time)}
+            </Paragraph>
+          )}
+        </>
+      )}
     </div>
   );
   return (

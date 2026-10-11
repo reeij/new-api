@@ -25,6 +25,7 @@ import { StatusContext } from '../../context/Status';
 import DashboardHeader from './DashboardHeader';
 import StatsCards from './StatsCards';
 import ChartsPanel from './ChartsPanel';
+import TokenTrendPanel from './TokenTrendPanel';
 import ApiInfoPanel from './ApiInfoPanel';
 import AnnouncementsPanel from './AnnouncementsPanel';
 import FaqPanel from './FaqPanel';
@@ -95,6 +96,13 @@ const Dashboard = () => {
     }
   };
 
+  const loadTokenData = async () => {
+    if (dashboardData.isAdminUser) {
+      const tokenData = await dashboardData.loadTokenQuotaData();
+      dashboardCharts.updateTokenChartData(tokenData);
+    }
+  };
+
   const initChart = async () => {
     await dashboardData.loadQuotaData().then((data) => {
       if (data && data.length > 0) {
@@ -102,6 +110,7 @@ const Dashboard = () => {
       }
     });
     await loadUserData();
+    await loadTokenData();
     await dashboardData.loadUptimeData();
   };
 
@@ -111,11 +120,13 @@ const Dashboard = () => {
       dashboardCharts.updateChartData(data);
     }
     await loadUserData();
+    await loadTokenData();
   };
 
   const handleSearchConfirm = async () => {
     await dashboardData.handleSearchConfirm(dashboardCharts.updateChartData);
     await loadUserData();
+    await loadTokenData();
   };
 
   // ========== 数据准备 ==========
@@ -217,6 +228,23 @@ const Dashboard = () => {
           )}
         </div>
       </div>
+
+      {/* 按 Key 调用趋势 */}
+      {dashboardData.isAdminUser && (
+        <div className='mb-4'>
+          <TokenTrendPanel
+            spec_token_trend={dashboardCharts.spec_token_trend}
+            tokenMetric={dashboardCharts.tokenMetric}
+            updateTokenMetric={dashboardCharts.updateTokenMetric}
+            tokenGranularity={dashboardCharts.tokenGranularity}
+            updateTokenGranularity={dashboardCharts.updateTokenGranularity}
+            CARD_PROPS={CARD_PROPS}
+            CHART_CONFIG={CHART_CONFIG}
+            FLEX_CENTER_GAP2={FLEX_CENTER_GAP2}
+            t={dashboardData.t}
+          />
+        </div>
+      )}
 
       {/* 系统公告和常见问答卡片 */}
       {dashboardData.hasInfoPanels && (
