@@ -76,6 +76,30 @@ function renderTimestamp(timestamp) {
   return <>{timestamp2string(timestamp)}</>;
 }
 
+// 列表列：额度重置周期
+const renderQuotaReset = (record, t) => {
+  const period = record.quota_reset_period;
+  if (record.unlimited_quota || !period || period === 'never') {
+    return (
+      <Tag color='white' shape='circle'>
+        {t('不重置')}
+      </Tag>
+    );
+  }
+  const label = describeResetPeriod(record, t);
+  const tip =
+    record.next_reset_time > 0
+      ? `${t('下次重置时间')}: ${timestamp2string(record.next_reset_time)}`
+      : label;
+  return (
+    <Tooltip content={tip} position='top'>
+      <Tag color='blue' shape='circle'>
+        {label}
+      </Tag>
+    </Tooltip>
+  );
+};
+
 // Render status column only (no usage)
 const renderStatus = (text, record, t) => {
   const enabled = text === 1;
@@ -524,6 +548,11 @@ export const getTokensColumns = ({
       title: t('剩余额度/总额度'),
       key: 'quota_usage',
       render: (text, record) => renderQuotaUsage(text, record, t),
+    },
+    {
+      title: t('额度重置周期'),
+      key: 'quota_reset',
+      render: (text, record) => renderQuotaReset(record, t),
     },
     {
       title: t('分组'),
